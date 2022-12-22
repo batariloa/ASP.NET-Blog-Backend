@@ -8,6 +8,7 @@ using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using BlogAPI;
 
 namespace BlogAPI.Controllers
@@ -20,10 +21,13 @@ namespace BlogAPI.Controllers
 
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IConfiguration _configuration;
-    public UserController(IConfiguration configuration, UserManager<ApplicationUser> userManager){
+        private readonly ApplicationDbContext _context;
+
+    public UserController(IConfiguration configuration, UserManager<ApplicationUser> userManager, ApplicationDbContext context){
         
         _userManager = userManager;
         _configuration = configuration;
+        _context = context;
     }
 
 
@@ -62,6 +66,21 @@ namespace BlogAPI.Controllers
     return Unauthorized();
 
 
+    }
+        [HttpPost("search/{term}")]
+    public async Task<IActionResult>  SearchUser(string term){
+
+
+    
+        var results = _context.Users.Where(x=> x.UserName.Contains(term)).Take(6);
+
+        var userResults = results.Select(x=> new SearchUserData(){
+            Username = x.UserName
+        });
+
+
+        return Ok(userResults);
+       
     }
 
     [HttpPost("register")]
