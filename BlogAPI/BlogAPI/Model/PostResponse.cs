@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 
 
-    public class PostData
+    public class PostResponse
     {
         public string AuthorId{get; set;}
         public string OwnerId{get; set;}

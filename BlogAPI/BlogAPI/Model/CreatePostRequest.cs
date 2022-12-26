@@ -7,8 +7,8 @@ using System.ComponentModel.DataAnnotations;
 
     public record CreatePostRequest
     (
-        [Required]
+        [Required(ErrorMessage ="Please provide the post title.")]
         string Title,
-        [Required]
+        [Required(ErrorMessage ="Please provide the post's body.")]
         string Text
     );
