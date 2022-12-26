@@ -90,11 +90,10 @@ namespace BlogAPI.Controllers
         var emailExists = await _userManager.FindByEmailAsync(model.Email);
         var usernameExists = await _userManager.FindByNameAsync(model.Username);
 
-        if(emailExists != null || usernameExists !=null){ 
-                         Console.WriteLine("ZAZA");
-
-            return StatusCode(StatusCodes.Status500InternalServerError);
-        }
+        if(emailExists != null) return BadRequest("Email already exists.");
+        
+        if( usernameExists !=null) return BadRequest("Username already taken.");
+                         
         
         ApplicationUser user = new ApplicationUser(){
             Email = model.Email,

@@ -186,7 +186,7 @@ namespace BlogAPI.Controllers;
                
             if(dbUser == null){
             
-             return Ok(new List<Post>());
+             return Unauthorized("You are not logged in.");
             }
             else {
 
@@ -238,7 +238,7 @@ namespace BlogAPI.Controllers;
                 return Unauthorized("You are not the owner of the post.");
             }
 
-            return Ok("Updated");
+            return Ok(new MessageResponse(){ Message = "Updated"});
         }
 
                 [HttpDelete("{id}")]
