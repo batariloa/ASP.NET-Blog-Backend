@@ -1,10 +1,7 @@
 
 using Microsoft.EntityFrameworkCore;
-using Pomelo.EntityFrameworkCore.MySql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
-using System.Configuration;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 var builder = WebApplication.CreateBuilder(args);
@@ -13,10 +10,11 @@ var builder = WebApplication.CreateBuilder(args);
 ConfigurationManager configuration = builder.Configuration;
 
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>{
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
 
     String connectionStr = configuration.GetConnectionString("DefaultConnectionString");
-    options.UseMySql(connectionStr,ServerVersion.AutoDetect(connectionStr));
+    options.UseMySql(connectionStr, ServerVersion.AutoDetect(connectionStr));
 
 });
 
@@ -26,17 +24,20 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
 
-builder.Services.AddAuthentication(options =>{
+builder.Services.AddAuthentication(options =>
+{
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultForbidScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
 
 
-}).AddJwtBearer( options =>{
+}).AddJwtBearer(options =>
+{
 
-    options.SaveToken= true;
+    options.SaveToken = true;
     options.RequireHttpsMetadata = false;
-    options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters(){
+    options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters()
+    {
 
         ValidateIssuer = true,
         ValidateAudience = true,
@@ -52,12 +53,12 @@ builder.Services.AddControllers();
 var app = builder.Build();
 
 
-  // global cors policy
-            app.UseCors(x => x
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-                .SetIsOriginAllowed(origin => true) // allow any origin
-                .AllowCredentials()); // allow credentials
+// global cors policy
+app.UseCors(x => x
+    .AllowAnyMethod()
+    .AllowAnyHeader()
+    .SetIsOriginAllowed(origin => true) // allow any origin
+    .AllowCredentials()); // allow credentials
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
