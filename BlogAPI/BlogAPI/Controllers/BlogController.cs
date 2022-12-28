@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-
+using Microsoft.AspNetCore.Identity;
+using System.Security.Claims;
 using System.Collections.ObjectModel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -20,8 +21,10 @@ public class PostController : ControllerBase
 {
 
     private readonly ApplicationDbContext _context;
+    private readonly UserManager<ApplicationUser> _userManager;
 
-    public PostController(ApplicationDbContext context)
+
+    public PostController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
     {
         _context = context;
     }
@@ -82,7 +85,6 @@ public class PostController : ControllerBase
     public IActionResult Repost(int id)
     {
 
-
         var post = _context.Posts.FirstOrDefault(p => p.Id == id);
 
         if (post == null) return BadRequest("That post doesn't exist.");
@@ -115,30 +117,32 @@ public class PostController : ControllerBase
     {
 
         var user = _context.Users
-            .Include(x => x.posts.OrderByDescending(c => c.TimePosted))
+            .Include(x => x.posts!.OrderByDescending(c => c.TimePosted))
             .Where(x => x.UserName == username)
             .FirstOrDefault();
 
-        if (user == null) return Ok(new List<Post>());
-        else
+        if (user == null) return NotFound("No such user");
+
+        if (user.LockoutEnd != null) return NotFound("User has been suspended");
+
+
+        var posts = user.posts!.Select(x => new PostResponse()
         {
-            var posts = user.posts.Select(x => new PostResponse()
-            {
 
-                Id = x.Id,
-                AuthorUsername = GetUsername(x.AuthorId),
-                Text = x.Text,
-                Title = x.Title,
-                OwnerId = x.OwnerId,
-                AuthorId = x.AuthorId,
-                OwnerUsername = x.Owner.UserName,
-                Repost = x.Repost
+            Id = x.Id,
+            AuthorUsername = GetUsername(x.AuthorId ?? ""),
+            Text = x.Text,
+            Title = x.Title,
+            OwnerId = x.OwnerId,
+            AuthorId = x.AuthorId,
+            OwnerUsername = x.Owner!.UserName,
+            Repost = x.Repost
 
 
-            });
+        });
 
-            return Ok(posts);
-        }
+        return Ok(posts);
+
 
 
     }
@@ -190,7 +194,7 @@ public class PostController : ControllerBase
         var user = _context
             .Users
             .Include(x => x.posts)
-            .Where(x => x.posts.Any(p => p.Id == id))
+            .Where(x => x.posts!.Any(p => p.Id == id))
             .FirstOrDefault();
 
 
@@ -218,27 +222,21 @@ public class PostController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public IActionResult DeletePost(int id)
+    public async Task<IActionResult> DeletePost(int id)
     {
 
-        var post = _context.Posts.FirstOrDefault(p => p.Id == id);
+        var post = await _context.Posts.Include(x => x.Owner).FirstAsync(p => p.Id == id);
 
         if (post == null) return NotFound("No post with such id.");
 
-        var user = _context
-            .Users
-            .Include(x => x.posts)
-            .Where(x => x.posts.Any(p => p.Id == id))
-            .FirstOrDefault();
+        var isAdmin = HttpContext.User.IsInRole("Admin");
 
-        if (user == null) return Unauthorized("User not found.");
 
         var username = User?.Identity?.Name;
 
-        if (username == user.UserName)
+        if (username == post.Owner.UserName || isAdmin)
         {
 
-            user.posts.Remove(post);
             _context.Posts.Remove(post);
             _context.SaveChanges();
 
@@ -249,10 +247,10 @@ public class PostController : ControllerBase
         }
 
 
-
-        Console.WriteLine("Post" + user.Id);
-        return Ok("Deleted");
+        return Ok(new MessageResponse() { Message = "Deleted" });
 
     }
+
+
 
 }

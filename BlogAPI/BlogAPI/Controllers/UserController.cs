@@ -9,7 +9,11 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+
 using BlogAPI;
+
+
 
 namespace BlogAPI.Controllers
 {
@@ -23,10 +27,15 @@ namespace BlogAPI.Controllers
         private readonly IConfiguration _configuration;
         private readonly ApplicationDbContext _context;
 
-        public UserController(IConfiguration configuration, UserManager<ApplicationUser> userManager, ApplicationDbContext context)
-        {
+        private readonly RoleManager<IdentityRole> _roleManager;
 
+
+
+        public UserController(IConfiguration configuration, UserManager<ApplicationUser> userManager, ApplicationDbContext context, RoleManager<IdentityRole> roleManager)
+
+        {
             _userManager = userManager;
+            _roleManager = roleManager;
             _configuration = configuration;
             _context = context;
         }
@@ -40,8 +49,13 @@ namespace BlogAPI.Controllers
             var user = await _userManager.FindByEmailAsync(model.Email);
 
 
+            if (user == null) return Unauthorized("Incorrect credentials");
+
+            if (user.LockoutEnd != null) return Unauthorized("User suspended.");
+
+
             //Check that user exists, check that password matches
-            if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
+            if (await _userManager.CheckPasswordAsync(user, model.Password))
             {
 
                 var userRoles = await _userManager.GetRolesAsync(user);
@@ -59,36 +73,23 @@ namespace BlogAPI.Controllers
 
 
                 var token = GenerateToken(authClaims);
+
                 return Ok(new
                 {
                     token = new JwtSecurityTokenHandler().WriteToken(token),
                     expiration = token.ValidTo,
                     username = user.UserName,
-                    id = user.Id
+                    id = user.Id,
+                    roles = userRoles
+
                 });
             }
 
-            return Unauthorized();
-
-
-        }
-        [HttpPost("search/{term}")]
-        public async Task<IActionResult> SearchUser(string term)
-        {
-
-
-
-            var results = _context.Users.Where(x => x.UserName.Contains(term)).Take(6);
-
-            var userResults = await results.Select(x => new SearchUserData()
-            {
-                Username = x.UserName
-            }).ToListAsync();
-
-
-            return Ok(userResults);
+            return Unauthorized("Incorrect credentials");
 
         }
+
+
 
         [HttpPost("register")]
         public async Task<IActionResult> UserRegister([FromBody] SignUpModel model)
@@ -110,11 +111,15 @@ namespace BlogAPI.Controllers
                 posts = new List<Post>()
             };
 
+            var claim = new Claim(ClaimTypes.Role, "User");
+
+
+
+
             var result = await _userManager.CreateAsync(user, model.Password);
 
             if (!result.Succeeded)
             {
-
 
                 string msg = "Errors: ";
                 foreach (var error in result.Errors)
@@ -126,15 +131,58 @@ namespace BlogAPI.Controllers
             }
 
 
+            if (!await _roleManager.RoleExistsAsync("User"))
+            {
+
+                await _roleManager.CreateAsync(new IdentityRole("User"));
+
+            }
+            await _userManager.AddToRoleAsync(user, "User");
+
+
 
             return Ok("Registered");
+
+        }
+
+        [HttpPut("ban/{username}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> BanUser(string username)
+        {
+
+            var user = await _userManager.FindByNameAsync(username);
+
+            if (user == null) return BadRequest("No user with such username");
+
+            var lockoutEndDate = new DateTime(2999, 01, 01);
+            await _userManager.SetLockoutEnabledAsync(user, true);
+            await _userManager.SetLockoutEndDateAsync(user, lockoutEndDate);
+
+            return Ok("User suspended");
+
+        }
+
+
+        [HttpPost("search/{term}")]
+        public async Task<IActionResult> SearchUser(string term)
+        {
+
+            var results = _context.Users.Where(x => x.UserName.Contains(term)).Take(6);
+
+            var userResults = await results.Select(x => new SearchUserData()
+            {
+                Username = x.UserName
+            }).ToListAsync();
+
+
+            return Ok(userResults);
 
         }
 
         //Generate new JWT token
         private JwtSecurityToken GenerateToken(List<Claim> authClaims)
         {
-            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration.GetValue<string>("JWT:SecretKey")));
+            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration.GetValue<string>("JWT:SecretKey") ?? ""));
 
             var token = new JwtSecurityToken(
                 issuer: _configuration["JWT:ValidIssuer"],
