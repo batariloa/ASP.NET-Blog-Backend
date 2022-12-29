@@ -234,7 +234,7 @@ public class PostController : ControllerBase
 
         var username = User?.Identity?.Name;
 
-        if (username == post.Owner.UserName || isAdmin)
+        if (username == post.Owner!.UserName || isAdmin)
         {
 
             _context.Posts.Remove(post);
